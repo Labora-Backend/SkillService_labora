@@ -1,104 +1,88 @@
 # Skill Service
 
-This is a Django-based service for managing skills in my microservice backend project.
+Skill Service manages the platform skill catalog and freelancer-to-skill assignments. It exposes public skill reads, role-protected skill assignment APIs, and internal skill administration endpoints used by Admin Service and Freelancer Profile Service.
 
-This service handles skill-related operations like creating skills and assigning them to users.
+## Responsibilities
 
----
+- Store skill catalog entries.
+- Allow admins to create skills through the public admin-protected API.
+- Allow freelancers to add or remove skills from their own profile.
+- Return skills for a given freelancer.
+- Provide internal CRUD endpoints for Admin Service.
 
-## What this service does
+## Features
 
-* Create and manage skills
-* Assign skills to users (freelancers)
-* Remove skills from users
-* Provide APIs for skill-related operations
+- Skill listing without authentication.
+- Admin-only skill creation.
+- Freelancer-only skill assignment and removal.
+- Duplicate freelancer skill assignment prevented with a model-level uniqueness constraint.
+- Internal user-skill lookup for profile enrichment.
 
----
+## API Endpoints
 
-## Tech Used
+Base path: `/api/`
 
-* Python
-* Django
-* Django REST Framework
-* Docker
+| Method | Path | Auth | Description |
+| --- | --- | --- | --- |
+| `GET` | `skills/` | Public | List all skills. |
+| `POST` | `skills/create/` | Admin JWT | Create a skill. |
+| `POST` | `freelancer/skills/add/` | Freelancer JWT | Add a skill to the authenticated freelancer. |
+| `DELETE` | `freelancer/skills/remove/<id>/` | Freelancer JWT | Remove one of the authenticated freelancer's skill records. |
+| `GET` | `freelancer/<user_id>/skills/` | Public | List skills for a freelancer user id. |
 
----
+## Internal Service Endpoints
 
-## Project Structure
+Internal endpoints use `X-Service-Key: <SERVICE_API_KEY>`.
 
-```text id="rwr1i9"
-SkillService/
-│
-├── skills/               # App logic (models, views, serializers)
-├── skillservice/         # Main Django project
-├── manage.py
-├── requirements.txt
-├── Dockerfile
-├── .gitignore
-├── .dockerignore
-└── README.md
-```
+| Method | Path | Description |
+| --- | --- | --- |
+| `GET` | `internal/users/<user_id>/skills/` | Return skills for one user. |
+| `GET` | `internal/skills/` | List all skills ordered by name. |
+| `POST` | `internal/skills/` | Create a skill. |
+| `GET` | `internal/skills/<skill_id>/` | Return one skill. |
+| `PUT` | `internal/skills/<skill_id>/` | Replace one skill. |
+| `DELETE` | `internal/skills/<skill_id>/` | Delete one skill. |
 
----
+## Authentication
 
-## API Endpoints (basic)
+Role-protected APIs use the shared RS256 JWT public key. Internal APIs bypass JWT and require `X-Service-Key`.
 
-* GET `/skills/` → list skills
-* POST `/skills/create/` → create skill
-* POST `/freelancer/skills/add/` → add skill to user
-* DELETE `/freelancer/skills/remove/<id>/` → remove skill
-* GET `/freelancer/<user_id>/skills/` → get user skills
+## Environment Variables
 
----
+| Variable | Purpose |
+| --- | --- |
+| `DJANGO_SECRET_KEY` | Django secret key. |
+| `DEBUG` | Enables debug mode when set to `1`, `true`, or `yes`. |
+| `ALLOWED_HOSTS` | Comma-separated allowed hosts. Defaults to `*`. |
+| `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD` | MySQL database configuration. |
+| `JWT_PUBLIC_KEY_PATH` | Public key used to verify Auth Service JWTs. |
+| `SERVICE_API_KEY` | Shared key for internal service endpoints. |
+| `*_SERVICE_URL` | Optional service URL settings loaded by settings. |
 
-## How to Run
+## Setup
 
-### 1. Clone
-
-```bash id="l6t5v7"
-git clone https://github.com/YOUR-USERNAME/SkillService.git
-cd SkillService
-```
-
-### 2. Setup environment
-
-```bash id="8b2jbo"
-python -m venv venv
-venv\Scripts\activate
-```
-
-### 3. Install dependencies
-
-```bash id="9plr8y"
+```bash
+cd SkillService_labora
+python -m venv .venv
+.venv\Scripts\activate
 pip install -r requirements.txt
-```
-
-### 4. Run migrations
-
-```bash id="h5nt6p"
 python manage.py migrate
+python manage.py runserver 8006
 ```
 
-### 5. Run server
+## Service Architecture
 
-```bash id="7yyk1d"
-python manage.py runserver
-```
+- Django project: `skillservice`
+- App: `skills`
+- Authentication: `skills.authentication.CustomJWTAuthentication`
+- Role decorators: top-level `authentication.py`
+- Internal permission: `skills.permissions.internal_service.IsInternalService`
 
----
+## Database Models
 
-## Run with Docker
+- `Skill`: skill name.
+- `UserSkill`: `user_id` plus foreign key to `Skill`; unique per user/skill pair.
 
-```bash id="s4k9hg"
-docker build -t skill-service .
-docker run -p 8000:8000 skill-service
-```
+## Notification/Event Flow
 
----
-
-## Notes
-
-* `.env`, `.pem`, and sensitive files are ignored
-* This service is part of a larger backend system
-
----
+This service does not emit notifications or WebSocket events.
